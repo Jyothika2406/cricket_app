@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Tells Tailwind to scan your project folder */
+@source "../**/*.{ts,tsx,js,jsx}";
+
+:root {
+  --brand-green: #1ed760;
+  --brand-dark: #010101;
+  --brand-input: #0d0d0d;
+  --background: #010101;
+  --foreground: #ffffff;
+}
+
+@theme inline {
+  --color-brand-green: var(--brand-green);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-input: var(--brand-input);
+}
+
+@layer base {
+  body {
+    background-color: #010101 !important;
+    color: white !important;
+    margin: 0;
+    padding: 0;
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    // ... keep your other settings the same
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "incremental": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "strictNullChecks": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "src/**/*", // Add this line
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+, "src/app/api/auth/...nextauth/route.ts"  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
