@@ -33,9 +33,16 @@ export default function Home() {
     if (status === "authenticated" && session?.user && !isLoggedIn) {
       // Fetch full user data and sync to context
       fetch("/api/user/profile")
-        .then(res => res.json())
+        .then(res => {
+          if (res.status === 401) {
+            // Not authenticated - ignore silently
+            return null
+          }
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
+          return res.json()
+        })
         .then(data => {
-          if (data.success && data.user) {
+          if (data?.success && data?.user) {
             login(data.user)
           }
         })

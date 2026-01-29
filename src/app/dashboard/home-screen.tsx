@@ -8,8 +8,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Zap, Trophy, Clock, Loader2, Wallet, Shield } from "lucide-react"
+import { Zap, Trophy, Clock, Loader2, Wallet, Shield, Lock } from "lucide-react"
 import { useApp } from "@/contexts/app-context"
+import { CountdownTimer } from "@/components/countdown-timer"
 
 interface Match {
   _id: string
@@ -18,6 +19,7 @@ interface Match {
   team2: string
   startTime: string
   status: "upcoming" | "live" | "completed"
+  bettingAllowed?: boolean
   questions: {
     _id: string
     text: string
@@ -194,23 +196,42 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
             <p className="text-muted-foreground/70 text-sm">Check back later!</p>
           </div>
         ) : (
-          matches.map((match) => (
+          matches.map((match) => {
+            // Check if betting is allowed (only for upcoming matches that haven't started)
+            const matchStartTime = new Date(match.startTime)
+            const now = new Date()
+            const isBettingAllowed = match.status === "upcoming" && matchStartTime > now
+            
+            return (
             <Card key={match._id} className="bg-card border-border overflow-hidden">
               <div className="bg-muted px-4 py-3 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-foreground">{match.title}</h3>
                   <p className="text-xs text-muted-foreground">{match.team1} vs {match.team2}</p>
                 </div>
-                <Badge className={
-                  match.status === "live" 
-                    ? "bg-green-500/20 text-green-500 border-green-500" 
-                    : "bg-yellow-500/20 text-yellow-500 border-yellow-500"
-                }>
-                  {match.status === "live" ? "🔴 LIVE" : "⏰ Upcoming"}
-                </Badge>
+                <CountdownTimer 
+                  startTime={match.startTime} 
+                  status={match.status}
+                  onStatusChange={() => {
+                    // Refresh matches when status changes
+                    setMatches(prev => prev.map(m => 
+                      m._id === match._id ? { ...m, status: "live" as const } : m
+                    ))
+                  }}
+                />
               </div>
               
               <CardContent className="p-4 space-y-4">
+                {/* Show betting closed message for live/completed matches */}
+                {!isBettingAllowed && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-red-400" />
+                    <p className="text-red-400 text-sm font-medium">
+                      {match.status === "live" ? "Betting closed - Match is LIVE" : "Betting closed - Match completed"}
+                    </p>
+                  </div>
+                )}
+                
                 {match.questions.filter(q => q.status === "open").length === 0 ? (
                   <p className="text-muted-foreground text-sm text-center py-4">No open betting questions</p>
                 ) : (
@@ -222,9 +243,14 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                         {q.options.map((opt, idx) => (
                           <Button
                             key={idx}
-                            onClick={() => openBetDialog(match._id, q._id, q.text, idx, opt.text, opt.odds)}
+                            onClick={() => isBettingAllowed && openBetDialog(match._id, q._id, q.text, idx, opt.text, opt.odds)}
                             variant="outline"
-                            className="h-14 bg-card border-border hover:bg-muted hover:border-green-500 transition-all flex flex-col items-start justify-center px-4"
+                            disabled={!isBettingAllowed}
+                            className={`h-14 border-border transition-all flex flex-col items-start justify-center px-4 ${
+                              isBettingAllowed 
+                                ? "bg-card hover:bg-muted hover:border-green-500 cursor-pointer" 
+                                : "bg-muted/50 cursor-not-allowed opacity-60"
+                            }`}
                           >
                             <span className="font-bold text-foreground text-sm">{opt.text}</span>
                             <span className="text-xs font-mono text-green-500">@{opt.odds}x</span>
@@ -236,7 +262,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                 )}
               </CardContent>
             </Card>
-          ))
+          )})
         )}
       </div>
 

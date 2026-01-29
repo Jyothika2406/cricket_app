@@ -6,8 +6,19 @@ export default function MyBets() {
 
     useEffect(() => {
         fetch("/api/user/bet-history")
-            .then(res => res.json())
-            .then(data => setHistory(data.bets));
+            .then(res => {
+                if (res.status === 401) {
+                    // User not authenticated - return empty bets
+                    return { bets: [] }
+                }
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
+                return res.json()
+            })
+            .then(data => setHistory(data.bets || []))
+            .catch(err => {
+                console.error("Failed to fetch bets", err)
+                setHistory([])
+            });
     }, []);
 
     return (

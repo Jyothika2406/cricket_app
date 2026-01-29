@@ -1,32 +1,19 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import Transaction from "@/models/Transaction"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { verifyAdmin } from "@/lib/admin-auth"
 
 // Get all pending transactions
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions)
-        
-        if (!session?.user?.email) {
-            return NextResponse.json(
-                { success: false, message: "Unauthorized" },
-                { status: 401 }
-            )
+        // Verify admin authorization
+        const auth = await verifyAdmin()
+        if (!auth.authorized) {
+            return auth.error
         }
 
         await dbConnect()
-
-        // Verify admin
-        const admin = await User.findOne({ email: session.user.email })
-        if (!admin || admin.role !== "admin") {
-            return NextResponse.json(
-                { success: false, message: "Forbidden" },
-                { status: 403 }
-            )
-        }
 
         const url = new URL(req.url)
         const type = url.searchParams.get("type") // "deposit" or "withdraw" or "all"
@@ -67,25 +54,15 @@ export async function GET(req: Request) {
 // Approve or reject transaction
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions)
-        
-        if (!session?.user?.email) {
-            return NextResponse.json(
-                { success: false, message: "Unauthorized" },
-                { status: 401 }
-            )
+        // Verify admin authorization
+        const auth = await verifyAdmin()
+        if (!auth.authorized) {
+            return auth.error
         }
 
         await dbConnect()
 
-        // Verify admin
-        const admin = await User.findOne({ email: session.user.email })
-        if (!admin || admin.role !== "admin") {
-            return NextResponse.json(
-                { success: false, message: "Forbidden" },
-                { status: 403 }
-            )
-        }
+        const admin = auth.user
 
         const { transactionId, action, rejectionReason } = await req.json()
 

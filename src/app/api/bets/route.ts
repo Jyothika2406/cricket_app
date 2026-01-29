@@ -4,6 +4,7 @@ import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import Match from "@/models/Match"
 import Bet from "@/models/Bet"
+import { isBettingAllowed, updateMatchStatuses } from "@/lib/match-utils"
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
     }
 
     await dbConnect()
+    
+    // Update match statuses first
+    await updateMatchStatuses()
     
     const user = await User.findOne({ email: session.user.email })
     
@@ -40,6 +44,14 @@ export async function POST(req: NextRequest) {
     const match = await Match.findById(matchId)
     if (!match) {
       return NextResponse.json({ success: false, message: "Match not found" }, { status: 404 })
+    }
+
+    // CRITICAL: Check if betting is allowed for this match
+    if (!isBettingAllowed(match.startTime, match.status)) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Betting is closed. Match has started or is completed." 
+      }, { status: 400 })
     }
 
     const question = match.questions.find((q: any) => q._id.toString() === questionId)

@@ -16,7 +16,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Lock
 } from "lucide-react"
 
 interface Match {
@@ -26,6 +27,7 @@ interface Match {
   team2: string
   startTime: string
   status: "upcoming" | "live" | "completed"
+  isEditable?: boolean
   questions: Question[]
   createdAt: string
 }
@@ -42,6 +44,7 @@ export default function MatchesPage() {
   const [matches, setMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [questionOpen, setQuestionOpen] = useState(false)
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -153,15 +156,61 @@ export default function MatchesPage() {
     if (!confirm("Are you sure you want to delete this match?")) return
 
     try {
-      const res = await fetch(`/api/admin/matches/${matchId}`, {
+      const res = await fetch(`/api/admin/matches?matchId=${matchId}`, {
         method: "DELETE",
       })
 
-      if (res.ok) {
+      const data = await res.json()
+      if (data.success) {
         setMatches(matches.filter(m => m._id !== matchId))
+      } else {
+        alert(data.message || "Failed to delete match")
       }
     } catch (err) {
       console.error("Failed to delete match:", err)
+      alert("Failed to delete match")
+    }
+  }
+
+  const openEditDialog = (match: Match) => {
+    setSelectedMatch(match)
+    setMatchForm({
+      title: match.title,
+      team1: match.team1,
+      team2: match.team2,
+      startTime: new Date(match.startTime).toISOString().slice(0, 16),
+    })
+    setEditOpen(true)
+  }
+
+  const handleEditMatch = async () => {
+    if (!selectedMatch) return
+
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/admin/matches", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId: selectedMatch._id,
+          ...matchForm,
+        }),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        await fetchMatches()
+        setEditOpen(false)
+        setMatchForm({ title: "", team1: "", team2: "", startTime: "" })
+        setSelectedMatch(null)
+      } else {
+        alert(data.message || "Failed to update match")
+      }
+    } catch (err) {
+      console.error("Failed to edit match:", err)
+      alert("Failed to update match")
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -229,13 +278,22 @@ export default function MatchesPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {matches.map((match) => (
+          {matches.map((match) => {
+            const isEditable = match.isEditable !== false && match.status === "upcoming" && new Date(match.startTime) > new Date()
+            
+            return (
             <Card key={match._id} className="bg-card border-border p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-bold text-foreground">{match.title}</h3>
                     {getStatusBadge(match.status)}
+                    {!isEditable && match.status !== "completed" && (
+                      <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-bold flex items-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        Locked
+                      </span>
+                    )}
                   </div>
                   <p className="text-muted-foreground text-sm">
                     {match.team1} vs {match.team2}
@@ -246,26 +304,44 @@ export default function MatchesPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedMatch(match)
-                      setQuestionOpen(true)
-                    }}
-                    className="border-green-500 text-green-500 hover:bg-green-500/10"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Question
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDeleteMatch(match._id)}
-                    className="border-red-500 text-red-500 hover:bg-red-500/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {isEditable && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openEditDialog(match)}
+                        className="border-blue-500 text-blue-500 hover:bg-blue-500/10"
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedMatch(match)
+                          setQuestionOpen(true)
+                        }}
+                        className="border-green-500 text-green-500 hover:bg-green-500/10"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Question
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteMatch(match._id)}
+                        className="border-red-500 text-red-500 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                  {!isEditable && (
+                    <span className="text-xs text-muted-foreground bg-muted px-3 py-2 rounded-lg">
+                      {match.status === "live" ? "Match is LIVE - Cannot edit" : match.status === "completed" ? "Match completed" : "Match started - Cannot edit"}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -317,7 +393,7 @@ export default function MatchesPage() {
                 </div>
               )}
             </Card>
-          ))}
+          )})}
         </div>
       )}
 
@@ -458,6 +534,75 @@ export default function MatchesPage() {
                 <>
                   <Plus className="w-4 h-4 mr-2" />
                   Add Question
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Match Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Edit Match</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-muted-foreground text-xs uppercase font-bold">Match Title</Label>
+              <Input
+                value={matchForm.title}
+                onChange={(e) => setMatchForm({ ...matchForm, title: e.target.value })}
+                placeholder="IPL 2026 - Match 1"
+                className="h-12 bg-background border-border rounded-xl text-foreground"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs uppercase font-bold">Team 1</Label>
+                <Input
+                  value={matchForm.team1}
+                  onChange={(e) => setMatchForm({ ...matchForm, team1: e.target.value })}
+                  placeholder="Mumbai Indians"
+                  className="h-12 bg-background border-border rounded-xl text-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-xs uppercase font-bold">Team 2</Label>
+                <Input
+                  value={matchForm.team2}
+                  onChange={(e) => setMatchForm({ ...matchForm, team2: e.target.value })}
+                  placeholder="Chennai Super Kings"
+                  className="h-12 bg-background border-border rounded-xl text-foreground"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground text-xs uppercase font-bold">Start Date & Time</Label>
+              <Input
+                type="datetime-local"
+                value={matchForm.startTime}
+                onChange={(e) => setMatchForm({ ...matchForm, startTime: e.target.value })}
+                className="h-12 bg-background border-border rounded-xl text-foreground"
+              />
+              <p className="text-xs text-muted-foreground">
+                Match must be scheduled in the future. Once started, it cannot be edited.
+              </p>
+            </div>
+            <Button
+              onClick={handleEditMatch}
+              disabled={submitting}
+              className="w-full h-12 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Save Changes
                 </>
               )}
             </Button>

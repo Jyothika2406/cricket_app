@@ -10,11 +10,23 @@ export default function BetHistoryScreen() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user?._id) return
+    if (!user?._id) {
+      setLoading(false)
+      return
+    }
 
     // Fetch user's betting history from the correct API
     fetch("/api/user/bet-history")
-      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 401) {
+          // User not authenticated - not an error, just no bets to show
+          return { bets: [] }
+        }
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`)
+        }
+        return res.json()
+      })
       .then((data) => {
         const bettingData = Array.isArray(data.bets) ? data.bets : []
         setBets(bettingData)
@@ -22,6 +34,7 @@ export default function BetHistoryScreen() {
       })
       .catch((err) => {
         console.error("Failed to fetch bets", err)
+        setBets([])
         setLoading(false)
       })
   }, [user?._id])

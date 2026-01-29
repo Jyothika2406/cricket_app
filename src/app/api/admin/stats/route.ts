@@ -1,37 +1,46 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
+import Match from "@/models/Match"
+import Bet from "@/models/Bet"
+import Transaction from "@/models/Transaction"
+import { verifyAdmin } from "@/lib/admin-auth"
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession()
-    
-    if (!session?.user?.email) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 })
+    // Verify admin authorization
+    const auth = await verifyAdmin(req)
+    if (!auth.authorized) {
+      return auth.error
     }
 
     await dbConnect()
-    
-    const user = await User.findOne({ email: session.user.email })
-    
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 })
-    }
 
-    // Get stats
+    // Get all stats
     const totalUsers = await User.countDocuments()
     const pendingKYC = await User.countDocuments({ kycStatus: "pending" })
+    const totalMatches = await Match.countDocuments()
+    const liveMatches = await Match.countDocuments({ status: "live" })
+    const totalBets = await Bet.countDocuments()
     
-    // For matches and bets, we'll need the Match and Bet models
-    // For now, return placeholder values
+    // Get transaction stats
+    const depositAgg = await Transaction.aggregate([
+      { $match: { type: "deposit", status: "approved" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ])
+    const withdrawAgg = await Transaction.aggregate([
+      { $match: { type: "withdraw", status: "approved" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ])
+    
     const stats = {
       totalUsers,
-      totalMatches: 0,
-      totalBets: 0,
+      totalMatches,
+      liveMatches,
+      totalBets,
       pendingKYC,
-      totalDeposits: 0,
-      totalWithdrawals: 0,
+      totalDeposits: depositAgg[0]?.total || 0,
+      totalWithdrawals: withdrawAgg[0]?.total || 0,
     }
 
     return NextResponse.json({ success: true, stats })
