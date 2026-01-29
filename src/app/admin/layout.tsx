@@ -8,9 +8,9 @@ import User from "@/models/User";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
     const session = await getServerSession(authOptions);
 
-    // If the user is not logged in, redirect to login
+    // If the user is not logged in, redirect to admin login
     if (!session?.user?.email) {
-        redirect("/login?error=Please login to access admin panel");
+        redirect("/admin/login");
     }
 
     // CRITICAL: Verify admin role from database (never trust session alone)
@@ -18,8 +18,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const user = await User.findOne({ email: session.user.email });
 
     if (!user || user.role !== "admin") {
-        // User is not an admin, redirect to dashboard with error
-        redirect("/dashboard?error=Access denied. Admin privileges required.");
+        // User is not an admin, redirect to admin login with error
+        redirect("/admin/login?error=Access denied. Admin privileges required.");
     }
 
     return (
